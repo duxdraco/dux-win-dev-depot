@@ -1,0 +1,20 @@
+{
+  "root": "D:\\DevDepot",
+  "linkStrategy": "Both",
+  "envVarScope": "User",
+  "logLevel": "Info",
+  "createJunctions": true,
+  "defaultProviderOn": true,
+  "providers": {
+    "gradle": true,
+    "maven": true,
+    "npm": true,
+    "pnpm": true,
+    "yarn": true,
+    "nuget": true,
+    "pip": true,
+    "docker": false,
+    "wsl": false
+  },
+  "exclude": []
+}

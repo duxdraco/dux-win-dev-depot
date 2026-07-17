@@ -1,0 +1,15 @@
+# Runtime output - never committed
+/logs/*
+/reports/*
+/backups/*
+!**/.gitkeep
+
+# Local user configuration (keep defaults + example)
+/config/config.json
+
+# Editor / OS
+.vs/
+.idea/
+*.user
+Thumbs.db
+desktop.ini
