@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Parse & load
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Recurse -Include *.ps1,*.psm1,*.psd1 -File |
+                   Where-Object { $_.FullName -notlike '*\.git\*' }
+          $errors = 0
+          foreach ($f in $files) {
+            $e = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$e)
+            if ($e) {
+              $errors += $e.Count
+              $e | ForEach-Object { Write-Host "::error file=$($f.FullName),line=$($_.Extent.StartLineNumber)::$($_.Message)" }
+            }
+          }
+          if ($errors) { throw "$errors syntax error(s) found." }
+          Write-Host "Parsed $($files.Count) files with no syntax errors."
+
+      - name: Import module and load providers
+        shell: pwsh
+        run: |
+          Import-Module ./modules/DevDepot.psm1 -Force -DisableNameChecking
+          $log = New-DevDepotLogger -LogDirectory $env:RUNNER_TEMP -Quiet
+          $providers = Import-DevDepotProviders -Path ./providers -Logger $log
+          $count = @($providers).Count
+          if ($count -lt 13) { throw "Expected at least 13 providers, loaded $count." }
+          Write-Host "Loaded $count providers."

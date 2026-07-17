@@ -1,0 +1,76 @@
+name: 🐛 Bug report
+description: Report something that isn't working as expected.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in as much detail as
+        you can — it makes fixing the issue much faster.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: When I run `DevDepot install`, ...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands you ran, in order.
+      placeholder: |
+        1. pwsh -File .\DevDepot.ps1 analyze
+        2. pwsh -File .\DevDepot.ps1 install --provider npm
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: input
+    id: devdepot-version
+    attributes:
+      label: DevDepot version
+      description: Output of `DevDepot version`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: pwsh-version
+    attributes:
+      label: PowerShell version
+      description: Output of `$PSVersionTable.PSVersion`.
+      placeholder: "7.4.0"
+    validations:
+      required: true
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      description: e.g. Windows 11 23H2.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log / report output
+      description: |
+        Paste relevant excerpts from `logs/` or `reports/`. Do NOT paste secrets, tokens,
+        or full environment dumps.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I am using PowerShell 7.0 or newer.
+          required: true
+        - label: I searched existing issues and this is not a duplicate.
+          required: true

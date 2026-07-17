@@ -1,0 +1,51 @@
+# Recommended GitHub labels for DevDepot.
+# Apply manually, or sync automatically with an action such as
+# EndBug/label-sync (point it at this file). Colors are hex without the leading #.
+
+# Type
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+- name: enhancement
+  color: a2eeef
+  description: New feature or improvement
+- name: provider
+  color: 0e8a16
+  description: A cache/SDK provider (new or existing)
+- name: documentation
+  color: 0075ca
+  description: Improvements or additions to docs
+- name: question
+  color: d876e3
+  description: Further information is requested
+- name: security
+  color: b60205
+  description: Security-related report or fix
+
+# Workflow / triage
+- name: needs-triage
+  color: fbca04
+  description: Awaiting maintainer review
+- name: good first issue
+  color: 7057ff
+  description: Good for newcomers
+- name: help wanted
+  color: 008672
+  description: Extra attention is wanted
+- name: blocked
+  color: 000000
+  description: Blocked by another issue or external dependency
+- name: wontfix
+  color: ffffff
+  description: This will not be worked on
+- name: duplicate
+  color: cfd3d7
+  description: This issue or PR already exists
+
+# Maintenance
+- name: dependencies
+  color: 0366d6
+  description: Dependency updates
+- name: ci
+  color: bfdadc
+  description: Continuous integration and tooling

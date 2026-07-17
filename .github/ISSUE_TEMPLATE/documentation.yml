@@ -1,0 +1,25 @@
+name: 📝 Documentation
+description: Report a problem with the documentation, or suggest an improvement.
+title: "[Docs]: "
+labels: ["documentation", "needs-triage"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Which document?
+      description: File name or URL (e.g. README.md, docs/Architecture.md).
+      placeholder: "README.md"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+      description: Describe the error, ambiguity, or missing information.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: Optional — how would you word or structure it?

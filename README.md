@@ -1,35 +1,138 @@
+<div align="center">
+
 # DevDepot
 
-**Move developer caches, SDKs and package repositories off your Windows system
-drive — safely, idempotently, and reversibly.**
+**Move developer caches, SDKs and package repositories off your Windows system drive — safely, idempotently, and reversibly.**
 
-DevDepot relocates the large, regenerable data that development tools scatter
-across `C:` (npm/NuGet/Gradle/pip caches, `.m2`, Coursier, …) to a single
-consolidated root such as `D:\DevDepot`, keeping your system drive clean while
-preserving full tool compatibility.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![PowerShell 7+](https://img.shields.io/badge/PowerShell-7%2B-5391FE?logo=powershell&logoColor=white)](https://learn.microsoft.com/powershell/)
+[![Platform: Windows](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)](#requirements)
+[![Release](https://img.shields.io/github/v/release/duxdraco/dux-win-dev-depot?sort=semver)](https://github.com/duxdraco/dux-win-dev-depot/releases)
+[![Build](https://github.com/duxdraco/dux-win-dev-depot/actions/workflows/build.yml/badge.svg)](https://github.com/duxdraco/dux-win-dev-depot/actions/workflows/build.yml)
+[![Tests](https://github.com/duxdraco/dux-win-dev-depot/actions/workflows/test.yml/badge.svg)](https://github.com/duxdraco/dux-win-dev-depot/actions/workflows/test.yml)
+[![Lint](https://github.com/duxdraco/dux-win-dev-depot/actions/workflows/lint.yml/badge.svg)](https://github.com/duxdraco/dux-win-dev-depot/actions/workflows/lint.yml)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-> Status: **v0.1.0 — first usable release.** 13 Java/Node/.NET/Python cache
-> providers, transactional migration, state-based rollback, verification and
-> safety levels. Docker/WSL/IDEs come in Phase 3. See
-> [CHANGELOG](CHANGELOG.md) and the [architecture review](docs/review/ArchitectureReview.md).
+</div>
 
 ---
 
-## Why
+DevDepot is a **Windows CLI** that relocates the large, regenerable data your development
+tools scatter across `C:` — npm, pnpm, Yarn, NuGet, Gradle, Maven, pip and more — into a
+single consolidated root such as `D:\DevDepot`. It keeps your system drive clean while every
+tool keeps working, because DevDepot uses each tool's official redirection **and** a
+filesystem junction at the original location.
 
-- **Reclaim system-drive space** without uninstalling anything.
-- **Compatibility first** — tools keep working because DevDepot uses each tool's
-  official redirection (environment variable) *and* a filesystem junction at the
-  original location. Nothing needs to "know" about DevDepot.
-- **Safe & reversible** — every change is recorded in the state database; `rollback`
+## Table of contents
+
+- [Why DevDepot](#why-devdepot)
+- [Before / After](#before--after)
+- [Features](#features)
+- [Supported providers](#supported-providers)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Commands](#commands)
+- [Example output](#example-output)
+- [Screenshots](#screenshots)
+- [Configuration](#configuration)
+- [How it works](#how-it-works)
+- [Safety](#safety)
+- [Roadmap](#roadmap)
+- [FAQ](#faq)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Why DevDepot
+
+Modern development environments quietly consume tens of gigabytes on the system drive.
+A single machine can hold multi-gigabyte npm, pip and Gradle caches, a NuGet package
+store, and SDK downloads — all on `C:`, often the smallest and most valuable drive.
+
+DevDepot exists to solve that without uninstalling anything or breaking your tools:
+
+- **Reclaim system-drive space** by moving regenerable caches to a bigger/secondary drive.
+- **Compatibility first** — tools keep working because DevDepot uses the tool's own
+  environment variable (e.g. `npm_config_cache`, `GRADLE_USER_HOME`, `PIP_CACHE_DIR`)
+  *and* leaves a directory junction at the original path. Nothing needs to know about DevDepot.
+- **Safe and reversible** — every change is recorded in a local state database; one command
   puts everything back.
+- **Idempotent** — run it as often as you like; it only moves what hasn't been moved.
+
+## Before / After
+
+```text
+BEFORE                                   AFTER
+C:\                                       C:\
+├─ Users\you\.gradle        (18 GB)       ├─ Users\you\.gradle        → junction ─┐
+├─ Users\you\.nuget         ( 6 GB)       ├─ Users\you\.nuget         → junction  │
+├─ AppData\Local\npm-cache  ( 4 GB)       ├─ AppData\Local\npm-cache  → junction  │
+└─ AppData\Local\pip\Cache  ( 0.5 GB)     └─ AppData\Local\pip\Cache  → junction  │
+                                                                                  ▼
+   ~28 GB stuck on C:                      D:\DevDepot\   (data lives here; C: is clean)
+                                           ├─ java\gradle
+                                           ├─ dotnet\nuget-packages
+                                           ├─ node\npm-cache
+                                           └─ python\pip-cache
+```
+
+The original paths still resolve (via the junction) and each tool's cache environment
+variable now points to the new location, so builds, installs and restores are unaffected.
+
+## Features
+
+- **13 cache providers** across the Java, Node.js, .NET and Python ecosystems.
+- **Grouped `analyze`** that classifies every tool as **Ready to migrate**,
+  **Already optimized**, or **Not installed**, and estimates reclaimable space — read-only.
+- **Transactional migration** — each step is applied, verified, and automatically rolled
+  back as a unit if anything fails; you are never left half-migrated.
+- **Per-provider rollback** from a local state database (no Windows scanning).
+- **Idempotent** installs — safe to re-run.
+- **Verification levels** — `Stats` (file/byte counts, default) or `Hash` (content SHA-256).
+- **No admin required** for the default setup (directory junctions + user-scope env vars).
+- **Structured logging** (human `.log` + machine-readable `.jsonl`) and JSON/Markdown/HTML reports.
+- **Extensible** — a new provider is a small declarative file. See
+  [docs/Providers.md](docs/Providers.md).
+
+## Supported providers
+
+| Ecosystem | Providers |
+|-----------|-----------|
+| Java      | Gradle, Maven, sbt / Coursier |
+| Node.js   | npm, pnpm, Yarn, Bun, Deno |
+| .NET      | NuGet |
+| Python    | pip, uv, Poetry, Conda |
+
+Full details, paths and environment variables are in
+[SUPPORTED_PROVIDERS.md](SUPPORTED_PROVIDERS.md). Docker, WSL, IDEs and more are on the
+[roadmap](ROADMAP.md).
 
 ## Requirements
 
-- **PowerShell 7.0+** (`pwsh`). Windows PowerShell 5.1 is *not* supported.
-- Windows 10/11.
-- No administrator rights required for the default strategy (directory junctions
-  and user-scope environment variables). Machine-scope changes need elevation.
+- **PowerShell 7.0+** (`pwsh`). Windows PowerShell 5.1 is not supported.
+- **Windows 10 or 11.**
+- Administrator rights are only needed for machine-scope environment variables (optional).
+
+Install PowerShell 7 with:
+
+```powershell
+winget install Microsoft.PowerShell
+```
+
+## Installation
+
+Clone the repository (no build step required):
+
+```powershell
+git clone https://github.com/duxdraco/dux-win-dev-depot.git
+cd dux-win-dev-depot
+```
+
+If script execution is restricted, allow it for the current process only:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
 
 ## Quick start
 
@@ -40,7 +143,7 @@ pwsh -File .\DevDepot.ps1 analyze
 # 2. Preview the migration without changing anything:
 pwsh -File .\DevDepot.ps1 install -WhatIf
 
-# 3. Do it:
+# 3. Migrate:
 pwsh -File .\DevDepot.ps1 install
 
 # 4. Check health any time:
@@ -56,39 +159,40 @@ Convenience wrappers exist for each command: `.\analyze.ps1`, `.\install.ps1`,
 
 ## Commands
 
-| Command    | What it does                                                        |
-|------------|---------------------------------------------------------------------|
-| `analyze`  | Detects tools, measures cache sizes, groups them (ready / optimized / not installed). Read-only. |
-| `install`  | Migrates installed providers transactionally. Idempotent. Records state for rollback. |
-| `doctor`   | Diagnoses broken junctions, missing/incorrect env vars, drift.      |
-| `repair`   | Fixes issues found by `doctor`.                                     |
-| `rollback` | Reverses migrations from the state database (all or `--provider <id>`). |
-| `status`   | Shows current configuration and per-provider health.               |
-| `report`   | Regenerates reports from the current state.                         |
-| `provider` | `list` / `enable <id>` / `disable <id>` / `info <id>`.              |
+| Command    | Description |
+|------------|-------------|
+| `analyze`  | Detect tools, measure cache sizes, group them (ready / optimized / not installed). Read-only. |
+| `install`  | Migrate installed providers transactionally. Idempotent. Records state for rollback. |
+| `doctor`   | Diagnose broken junctions, missing/incorrect environment variables, and drift. |
+| `repair`   | Fix issues found by `doctor`. |
+| `rollback` | Reverse migrations from the state database (all, or `--provider <id>`). |
+| `status`   | Show current configuration and per-provider health. |
+| `report`   | Regenerate JSON/Markdown/HTML reports from the current state. |
+| `provider` | `list` / `enable <id>` / `disable <id>` / `info <id>`. |
 
 Every mutating command supports `-WhatIf` for a dry run, and `--provider <id>`
 (or `-Provider <id>`) to target a single provider.
 
 ## Example output
 
-`DevDepot analyze` groups everything it finds:
+`DevDepot analyze` groups everything it finds and estimates reclaimable space:
 
 ```text
 DevDepot analyze
-  Root: E:\00 DevDepot
+  Root: D:\DevDepot
 
 READY TO MIGRATE
-  npm            3.9 GB   C:\Users\me\AppData\Local\npm-cache
-  pip          455.2 MB   C:\Users\me\AppData\Local\pip\Cache
+  npm            3.9 GB   C:\Users\you\AppData\Local\npm-cache
+  pip          455.2 MB   C:\Users\you\AppData\Local\pip\Cache
+  Gradle        18.4 GB   C:\Users\you\.gradle
 
 ALREADY OPTIMIZED
-  Gradle, Maven, NuGet, uv
+  Maven, NuGet, uv
 
 NOT INSTALLED
   sbt / Coursier, Bun, Deno, Yarn, Conda, Poetry
 
-Reclaimable from system drive: 4.4 GB
+Reclaimable from system drive: 22.8 GB
 ```
 
 `DevDepot install` prints a verification block per provider:
@@ -99,10 +203,10 @@ Reclaimable from system drive: 4.4 GB
 npm
 
 Current:
-C:\Users\me\AppData\Local\npm-cache
+C:\Users\you\AppData\Local\npm-cache
 
 New:
-E:\00 DevDepot\node\npm-cache
+D:\DevDepot\node\npm-cache
 
 Status:
 SUCCESS
@@ -116,66 +220,89 @@ PASS
 ========================================
 ```
 
+## Screenshots
+
+> Screenshots are welcome — see [`docs/assets/`](docs/assets/). Suggested captures:
+
+<!-- Replace these placeholders with real images once captured. -->
+<!-- ![DevDepot analyze](docs/assets/analyze.png) -->
+<!-- ![DevDepot install](docs/assets/install.png) -->
+<!-- ![DevDepot status](docs/assets/status.png) -->
+
+| `analyze` | `install` | `status` |
+|-----------|-----------|----------|
+| _add `docs/assets/analyze.png`_ | _add `docs/assets/install.png`_ | _add `docs/assets/status.png`_ |
+
 ## Configuration
 
-Copy [`config/config.example.json`](config/config.example.json) to
-`config/config.json` and edit. See [docs/Architecture.md](docs/Architecture.md#configuration)
-for every option.
+Copy [`config/config.example.json`](config/config.example.json) to `config/config.json`
+and edit. Every option is documented in
+[docs/Architecture.md](docs/Architecture.md#configuration).
 
 ```json
 {
   "root": "D:\\DevDepot",
   "linkStrategy": "Both",
   "envVarScope": "User",
-  "providers": { "docker": false },
+  "verification": "Stats",
+  "safetyLevel": "Safe",
+  "providers": { "conda": false },
   "exclude": []
 }
 ```
 
-- `linkStrategy`: `EnvVar` (redirect via env var only), `Junction` (junction
-  only), or `Both` (default — most compatible).
-- Unlisted providers are **enabled by default**, so new providers work without
-  touching your config. Disable one with `"providers": { "id": false }` or via
-  `exclude`.
+- `linkStrategy`: `EnvVar` (redirect via env var only), `Junction` (junction only),
+  or `Both` (default — most compatible).
+- Unlisted providers are **enabled by default**, so new providers work without editing
+  your config. Disable one with `"providers": { "id": false }` or via `exclude`.
 
-## Project layout
+Configuration is layered (lowest to highest precedence): built-in defaults → machine
+config → user config → environment variables (`DEVDEPOT_*`) → CLI flags.
 
-```
-DevDepot.ps1        Main CLI dispatcher
-install.ps1 …       Thin command wrappers
-config/             Default + example configuration
-modules/            Core modules (logging, migration, junction, rollback, …)
-providers/          One declarative *.provider.ps1 per technology
-reports/            Generated JSON/Markdown/HTML reports (git-ignored)
-logs/               Timestamped run logs, human + JSONL (git-ignored)
-.state/             State database + history for rollback (git-ignored)
-tests/              Pester 5 unit + integration + hardening tests
-docs/               Architecture, provider guide, contributing, roadmap, FAQ
-```
+## How it works
 
-## Documentation
+DevDepot is a modular PowerShell 7 application, not a single script. A declarative
+**provider** describes *what* to move; a **transactional engine** implements *how*, with
+verification and automatic rollback; a local **state database** records every change so
+rollback never has to guess. See [docs/Architecture.md](docs/Architecture.md) for the full
+design.
 
-- [Architecture](docs/Architecture.md)
-- [Providers](docs/Providers.md)
-- [Developer guide](docs/DeveloperGuide.md)
-- [Contributing](docs/Contributing.md)
-- [Roadmap](docs/Roadmap.md)
-- [Changelog](CHANGELOG.md)
-- [Troubleshooting](docs/Troubleshooting.md)
-- [FAQ](docs/FAQ.md)
-- Phase 2.5 review: [Architecture Review](docs/review/ArchitectureReview.md) ·
-  [Risk](docs/review/RiskAssessment.md) · [Tech Debt](docs/review/TechnicalDebt.md) ·
-  [Breaking Changes](docs/review/BreakingChanges.md) · [Migration Plan](docs/review/MigrationPlan.md)
+## Safety
 
-## Safety model
+DevDepot never deletes user data. Migrations copy with `robocopy`, verify the copy, then
+place a junction at the original path — the source is only removed after verification.
+Sources inside the Windows directory, Program Files, or a drive root are refused. Every
+reversible action is recorded in `.state/state.json` (with history), and any operation
+failure rolls back the entire transaction.
 
-DevDepot never deletes user data. Migrations move data with `robocopy`, verify
-the move (file/byte counts, optionally content hash), then place a junction at the
-original path. Sources inside the Windows directory, Program Files or drive roots
-are refused. Every reversible action is recorded in the state database
-(`.state/state.json`, with history), and any operation failure rolls back the whole
-transaction. See [docs/Architecture.md](docs/Architecture.md#safety) for details.
+## Roadmap
+
+The current release focuses on the Java, Node.js, .NET and Python ecosystems. Docker,
+WSL, JetBrains/VS Code, and AI/cloud tooling are planned. See [ROADMAP.md](ROADMAP.md).
+
+## FAQ
+
+Common questions — "Is my data safe?", "Do I need admin?", "Will this break my tools?" —
+are answered in [FAQ.md](FAQ.md).
+
+## Contributing
+
+Contributions are welcome, and new providers are small and low-risk. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md) to get
+started. Have an idea or a question? Open a
+[Discussion](https://github.com/duxdraco/dux-win-dev-depot/discussions) or an
+[Issue](https://github.com/duxdraco/dux-win-dev-depot/issues/new/choose).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+DevDepot is released under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+
+**DevDepot** — developed and maintained by **Dux Draco**.
+
+If DevDepot saved space on your machine, consider leaving a ⭐ to help others find it.
+
+</div>

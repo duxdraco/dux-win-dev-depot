@@ -1,0 +1,29 @@
+name: ❓ Question
+description: Ask a question about using or configuring DevDepot.
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For open-ended help and discussion, consider
+        [Discussions](https://github.com/duxdraco/dux-win-dev-depot/discussions).
+        For a specific question, this template is fine.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to achieve? Include commands or config if relevant.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I checked the README and FAQ first.
+          required: true

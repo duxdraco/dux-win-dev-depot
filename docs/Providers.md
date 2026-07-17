@@ -1,28 +1,12 @@
-# Providers
+# Providers — authoring guide
 
 A provider teaches DevDepot about one technology: what it caches, where, and how
 to redirect it. Providers live in `providers/<id>.provider.ps1` and are pure
 data — the [engine](Architecture.md#the-provider-contract) does the work.
 
-## Implemented (Phase 2)
-
-| Id        | Name           | Category | Redirects                                   | Env var             | Strategy |
-|-----------|----------------|----------|---------------------------------------------|---------------------|----------|
-| `gradle`  | Gradle         | Java     | `~/.gradle`                                 | `GRADLE_USER_HOME`  | Auto     |
-| `maven`   | Maven          | Java     | `~/.m2`                                      | –                   | Junction |
-| `sbt`     | sbt / Coursier | Java     | `~/.sbt`, `~/.ivy2`, Coursier cache         | `COURSIER_CACHE`    | mixed    |
-| `npm`     | npm            | Node     | `%LOCALAPPDATA%\npm-cache`                   | `npm_config_cache`  | Auto     |
-| `pnpm`    | pnpm           | Node     | `%LOCALAPPDATA%\pnpm`                        | –                   | Junction |
-| `yarn`    | Yarn           | Node     | `%LOCALAPPDATA%\Yarn\Cache`                  | `YARN_CACHE_FOLDER` | Auto     |
-| `bun`     | Bun            | Node     | `~/.bun`                                     | `BUN_INSTALL`       | Auto     |
-| `deno`    | Deno           | Node     | `%LOCALAPPDATA%\deno`                        | `DENO_DIR`          | Auto     |
-| `nuget`   | NuGet          | DotNet   | `~/.nuget/packages`                          | `NUGET_PACKAGES`    | Auto     |
-| `pip`     | pip            | Python   | `%LOCALAPPDATA%\pip\Cache`                   | `PIP_CACHE_DIR`     | Auto     |
-| `uv`      | uv             | Python   | `%LOCALAPPDATA%\uv\cache`                    | `UV_CACHE_DIR`      | Auto     |
-| `poetry`  | Poetry         | Python   | `%LOCALAPPDATA%\pypoetry\Cache`              | `POETRY_CACHE_DIR`  | Auto     |
-| `conda`   | Conda          | Python   | `~/.conda`                                   | –                   | Junction |
-
-"Auto" resolves to `config.linkStrategy` (default `Both`).
+> For the **catalog of shipped providers** (paths, environment variables, strategies),
+> see [SUPPORTED_PROVIDERS.md](../SUPPORTED_PROVIDERS.md). This page is the guide to
+> **writing** a provider.
 
 ## Adding a provider
 

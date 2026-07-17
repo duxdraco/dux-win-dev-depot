@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Package & publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package release archive
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}"
+          if (-not $ver) { $ver = 'dev' }
+          $staging = Join-Path $env:RUNNER_TEMP "DevDepot"
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          $include = @(
+            'DevDepot.ps1','analyze.ps1','install.ps1','doctor.ps1','repair.ps1','rollback.ps1','status.ps1',
+            'DevDepot.psd1','PSScriptAnalyzerSettings.psd1','modules','providers','config','docs',
+            'README.md','LICENSE','CHANGELOG.md','SUPPORTED_PROVIDERS.md','ROADMAP.md','FAQ.md'
+          )
+          Copy-Item -Recurse -Force -Path $include -Destination $staging
+          Compress-Archive -Path "$staging/*" -DestinationPath "DevDepot-$ver.zip" -Force
+          Write-Host "Created DevDepot-$ver.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: DevDepot ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: DevDepot-*.zip

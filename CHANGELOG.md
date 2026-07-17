@@ -4,6 +4,12 @@ All notable changes to DevDepot are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+DevDepot is developed and maintained by **Dux Draco**.
+
+## [Unreleased]
+
+_Nothing yet. See the [roadmap](ROADMAP.md) for what's planned._
+
 ## [0.1.0] - 2026-07-17
 
 First usable release. Migrates developer caches, SDKs and package repositories off
@@ -64,4 +70,5 @@ their own tooling (e.g. pnpm's drive-local store, a custom Maven
 - CI on real PowerShell 7 + Pester 5 is not yet wired (tracked for the next phase).
 - Docker, WSL, IDEs and additional ecosystems are planned for Phase 3.
 
+[Unreleased]: https://github.com/duxdraco/dux-win-dev-depot/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/duxdraco/dux-win-dev-depot/releases/tag/v0.1.0

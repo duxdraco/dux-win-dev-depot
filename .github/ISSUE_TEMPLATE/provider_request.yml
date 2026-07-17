@@ -1,0 +1,53 @@
+name: 📦 Provider request
+description: Request support for a new tool, SDK, or package manager.
+title: "[Provider]: "
+labels: ["provider", "enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Providers are small and easy to add — see
+        [docs/Providers.md](https://github.com/duxdraco/dux-win-dev-depot/blob/main/docs/Providers.md).
+        The details below help us (or you) implement it quickly and correctly.
+  - type: input
+    id: tool
+    attributes:
+      label: Tool name
+      placeholder: "Cargo (Rust)"
+    validations:
+      required: true
+  - type: dropdown
+    id: ecosystem
+    attributes:
+      label: Ecosystem
+      options: [Java, Node.js, .NET, Python, Go, Rust, Ruby, PHP, Containers, Cloud, AI/ML, Game engines, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: cache-location
+    attributes:
+      label: Cache / data location(s) on Windows
+      description: Where does the tool store its cache today? Use `%LOCALAPPDATA%`, `~`, etc.
+      placeholder: "%USERPROFILE%\\.cargo"
+    validations:
+      required: true
+  - type: input
+    id: env-var
+    attributes:
+      label: Cache environment variable (if any)
+      description: The official variable the tool honors, e.g. CARGO_HOME. Leave blank if none.
+      placeholder: "CARGO_HOME"
+  - type: input
+    id: docs
+    attributes:
+      label: Link to the tool's cache/config documentation
+      placeholder: "https://doc.rust-lang.org/cargo/guide/cargo-home.html"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: This redirects a regenerable cache/artifact store, not credentials or source code.
+          required: true
+        - label: I searched existing issues and this provider isn't already requested or shipped.
+          required: true
