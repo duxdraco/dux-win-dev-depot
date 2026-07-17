@@ -38,12 +38,13 @@ proceed; restore it or run on a standard Windows install.
 
 ## How do I undo everything?
 ```powershell
-pwsh -File .\DevDepot.ps1 rollback -ManifestPath .\backups
+pwsh -File .\DevDepot.ps1 rollback                     # everything
+pwsh -File .\DevDepot.ps1 rollback --provider npm      # one provider
 ```
-This uses the newest manifest in `backups/`. Point `-ManifestPath` at a specific
-`manifest-<runId>.json` to reverse a particular run.
+Rollback reads the state database (`.state/state.json`) and reverses each recorded
+operation. Prior states are archived under `.state/history/`.
 
-## Where are the logs / reports?
-- Logs: `logs/<command>-<timestamp>.log`
+## Where are the logs / reports / state?
+- Logs: `logs/<command>-<timestamp>.log` (human) and `.jsonl` (structured)
 - Reports: `reports/report-<command>-<runId>.{json,md,html}`
-- Manifests: `backups/manifest-<runId>.json`
+- State: `.state/state.json` (+ `.state/history/`)

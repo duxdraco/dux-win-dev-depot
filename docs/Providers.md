@@ -57,7 +57,7 @@ VHDX). Provide a `Hooks` table overriding just the actions you need:
     Hooks = @{
         Migrate = {
             param($provider, $ctx)
-            # $ctx.Logger, $ctx.Config, $ctx.Manifest, $ctx.Simulate available here.
+            # $ctx.Logger, $ctx.Config, $ctx.State, $ctx.Simulate available here.
             # ... stop Docker, relocate the data-root, restart ...
             New-DevDepotResult -Provider $provider.Id -Action 'Migrate' -Status 'Success' -Message '...'
         }
@@ -67,6 +67,36 @@ VHDX). Provide a `Hooks` table overriding just the actions you need:
 
 A hook fully replaces the engine for that action; you can still call any core
 module function (they are all imported).
+
+## Provider metadata (optional, recommended)
+
+Declare `Version` and a `Metadata` block so the engine can gate and order
+providers. All fields have safe defaults, so metadata is additive.
+
+```powershell
+@{
+    Id = 'docker'; Name = 'Docker Desktop'; Category = 'Containers'
+    Version = '1.0.0'
+    Metadata = @{
+        Dependencies      = @('wsl')          # run after these providers
+        Conflicts         = @()               # cannot coexist with these
+        Priority          = 200               # lower runs earlier (default 100)
+        RequiresAdmin     = $true             # skipped if not elevated
+        MinimumPowerShell = '7.4'
+        MinimumWindows    = '10.0.19045'
+        SupportsRollback  = $true
+    }
+    Mappings = @(
+        @{ Source = '...'; TargetSubPath = 'containers\docker'; SafetyLevel = 'Conservative' }
+    )
+}
+```
+
+Per-mapping `SafetyLevel` (`Safe`|`Conservative`|`Aggressive`|`Experimental`,
+default `Safe`) gates the operation against `config.safetyLevel`. Mark anything
+destructive (e.g. pruning) at `Aggressive` or higher so it never runs by default.
+
+Inspect resolved metadata with `DevDepot provider info <id>`.
 
 ## Provider guidelines
 

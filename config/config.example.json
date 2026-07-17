@@ -3,6 +3,8 @@
   "linkStrategy": "Both",
   "envVarScope": "User",
   "logLevel": "Info",
+  "verification": "Stats",
+  "safetyLevel": "Safe",
   "createJunctions": true,
   "defaultProviderOn": true,
   "providers": {

@@ -7,7 +7,7 @@ which are small and low-risk.
 
 1. Target **PowerShell 7+**. Do not add Windows PowerShell 5.1 workarounds.
 2. Keep changes modular — no logic in `DevDepot.ps1` that belongs in a module.
-3. Every mutating function supports `-WhatIf` and records a manifest entry.
+3. Every mutating function supports `-WhatIf`; migrations are recorded in the state database.
 4. Add or update tests for behavioural changes.
 5. Run the suite and lint before opening a PR.
 

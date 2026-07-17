@@ -3,7 +3,7 @@
 **Is my data safe? Will anything be deleted?**
 DevDepot never hard-deletes user data. It *moves* caches with `robocopy` and
 leaves a junction behind. Removing a junction (on rollback) does not touch the
-data it points to. Every change is recorded in a manifest for rollback.
+data it points to. Every change is recorded in the state database for rollback.
 
 **Do I need administrator rights?**
 No, for the default setup (directory junctions + user-scope environment

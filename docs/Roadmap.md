@@ -20,6 +20,24 @@ phase does not start until the previous one passes all of these.
   uv, poetry, conda.
 - Unit + integration tests (migrate, idempotency, rollback).
 
+## Phase 2.5 — Production hardening ✅
+
+- Transactional migration engine (operations with Do/Verify/Undo; automatic
+  rollback of the whole transaction on any failure).
+- State database (`.state/state.json` + history); rollback consumes state.
+- Provider metadata: dependencies, conflicts, priority, `RequiresAdmin`,
+  `MinimumPowerShell`/`MinimumWindows`, `Supports*`; capability gating and
+  dependency/conflict/cycle resolution.
+- Migration verification (Stats default, Hash opt-in).
+- Safety levels (Safe/Conservative/Aggressive/Experimental).
+- Structured JSONL logging; layered configuration (defaults→machine→user→env→CLI).
+- CLI subcommands incl. `report` and `provider list|enable|disable|info`.
+- Review deliverables in `docs/review/`.
+
+**Release gate before Phase 3:** CI on real PowerShell 7 + Pester 5, path
+edge-case/fault-injection tests, concurrent-run lock (see
+`docs/review/MigrationPlan.md`).
+
 ## Phase 3 — Platform & IDE tooling (planned)
 
 - Go (`GOPATH`/`GOMODCACHE`), Rust (`CARGO_HOME`), Ruby (gems), PHP/Composer,
@@ -43,7 +61,7 @@ phase does not start until the previous one passes all of these.
 
 ## Design constraints that will not change
 
-- No hard deletes; everything reversible via manifest.
+- No hard deletes; everything reversible via the state database.
 - Compatibility-first (env var + junction).
 - Providers stay declarative wherever possible; hooks only for genuinely
   imperative tools.

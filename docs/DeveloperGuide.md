@@ -56,4 +56,4 @@ test. Use `New-Sandbox` in the integration file as a template.
 - Raise verbosity: `-LogLevel Debug` (or `Trace`).
 - Dry run everything: `-WhatIf`.
 - Inspect a run: `logs/<command>-*.log`, `reports/report-*.json`,
-  `backups/manifest-*.json`.
+  `.state/state.json`.

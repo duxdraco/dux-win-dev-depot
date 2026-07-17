@@ -60,12 +60,14 @@ function New-DevDepotLogger {
         New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
     }
 
-    $stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $logFile = Join-Path $LogDirectory ('{0}-{1}.log' -f $Name, $stamp)
+    $stamp    = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $logFile  = Join-Path $LogDirectory ('{0}-{1}.log' -f $Name, $stamp)
+    $jsonFile = Join-Path $LogDirectory ('{0}-{1}.jsonl' -f $Name, $stamp)
 
     $logger = [pscustomobject]@{
         PSTypeName   = 'DevDepot.Logger'
         LogFile      = $logFile
+        JsonFile     = $jsonFile
         MinimumLevel = $MinimumLevel
         Quiet        = [bool]$Quiet
         ErrorCount   = 0
@@ -75,18 +77,26 @@ function New-DevDepotLogger {
     }
 
     # Core write routine. Invoked as a method so $this binds to the logger.
+    # Emits both a human-readable line and a machine-readable JSONL record.
     $logger | Add-Member -MemberType ScriptMethod -Name Write -Value {
-        param([string] $Level, [string] $Message)
+        param([string] $Level, [string] $Message, [hashtable] $Data = $null)
         if ($this.Levels[$Level] -lt $this.Levels[$this.MinimumLevel]) { return }
 
         if ($Level -eq 'Error') { $this.ErrorCount++ }
         if ($Level -eq 'Warn')  { $this.WarnCount++ }
 
-        $ts   = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
+        $now  = Get-Date
+        $ts   = $now.ToString('yyyy-MM-dd HH:mm:ss.fff')
         $line = '{0} [{1,-5}] {2}' -f $ts, $Level.ToUpperInvariant(), $Message
 
         # File output is best-effort; never let a logging failure abort a migration.
         try { Add-Content -LiteralPath $this.LogFile -Value $line -Encoding utf8 } catch { }
+        try {
+            $record = [ordered]@{ ts = $now.ToString('o'); level = $Level; message = $Message }
+            if ($Data) { $record['data'] = $Data }
+            $json = [pscustomobject]$record | ConvertTo-Json -Depth 8 -Compress
+            Add-Content -LiteralPath $this.JsonFile -Value $json -Encoding utf8
+        } catch { }
 
         if (-not $this.Quiet) {
             Write-Host $line -ForegroundColor $this.Colours[$Level]
@@ -98,6 +108,11 @@ function New-DevDepotLogger {
     $logger | Add-Member -MemberType ScriptMethod -Name Info  -Value { param($m) $this.Write('Info',  $m) }
     $logger | Add-Member -MemberType ScriptMethod -Name Warn  -Value { param($m) $this.Write('Warn',  $m) }
     $logger | Add-Member -MemberType ScriptMethod -Name Error -Value { param($m) $this.Write('Error', $m) }
+    # Structured event: level, message and an arbitrary data payload for JSONL.
+    $logger | Add-Member -MemberType ScriptMethod -Name Event -Value {
+        param([string] $Level, [string] $Message, [hashtable] $Data)
+        $this.Write($Level, $Message, $Data)
+    }
 
     return $logger
 }

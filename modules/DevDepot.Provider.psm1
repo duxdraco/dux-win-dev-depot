@@ -54,6 +54,135 @@ function Test-DevDepotProviderDescriptor {
     return , $problems.ToArray()
 }
 
+function Get-DevDepotProviderMetadata {
+    <#
+    .SYNOPSIS
+        Returns a provider's metadata merged over defaults.
+    .DESCRIPTION
+        Old-style descriptors (no Metadata/Version) still work: every field has a
+        sensible default, so metadata is additive and non-breaking to author.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param([Parameter(Mandatory)][hashtable] $Provider)
+
+    $defaults = @{
+        Dependencies      = @()
+        Conflicts         = @()
+        Priority          = 100
+        RequiresAdmin     = $false
+        MinimumPowerShell = '7.0'
+        MinimumWindows    = '10.0.0'
+        SupportsRollback  = $true
+        SupportsAnalyze   = $true
+        SupportsMigrate   = $true
+    }
+    $meta = if ($Provider.ContainsKey('Metadata') -and $Provider['Metadata'] -is [hashtable]) { $Provider['Metadata'] } else { @{} }
+    foreach ($k in $meta.Keys) { $defaults[$k] = $meta[$k] }
+
+    $defaults['Version'] = if ($Provider.ContainsKey('Version')) { [string]$Provider['Version'] } else { '0.0.0' }
+    return [pscustomobject]$defaults
+}
+
+function Test-DevDepotProviderCapable {
+    <#
+    .SYNOPSIS
+        Checks a provider against the current environment (PS/Windows/admin).
+    .OUTPUTS
+        [pscustomobject] Capable + Reasons. Version comparisons come from the
+        context so tests can inject values.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)][hashtable] $Provider,
+        [Parameter(Mandatory)][pscustomobject] $Context
+    )
+    $meta    = Get-DevDepotProviderMetadata -Provider $Provider
+    $reasons = [System.Collections.Generic.List[string]]::new()
+
+    try {
+        if ([version]$meta.MinimumPowerShell -gt [version]$Context.PowerShellVersion) {
+            $reasons.Add("Requires PowerShell $($meta.MinimumPowerShell) (have $($Context.PowerShellVersion)).")
+        }
+    } catch { }
+    try {
+        if ($Context.WindowsVersion -and ([version]$meta.MinimumWindows -gt [version]$Context.WindowsVersion)) {
+            $reasons.Add("Requires Windows $($meta.MinimumWindows) (have $($Context.WindowsVersion)).")
+        }
+    } catch { }
+    if ($meta.RequiresAdmin -and -not $Context.Privilege.IsElevated) {
+        $reasons.Add('Requires administrator rights.')
+    }
+
+    [pscustomobject]@{
+        Capable = ($reasons.Count -eq 0)
+        Reasons = $reasons.ToArray()
+    }
+}
+
+function Resolve-DevDepotProviderOrder {
+    <#
+    .SYNOPSIS
+        Orders providers by dependency then priority, and reports conflicts/cycles.
+    .DESCRIPTION
+        Performs a stable topological sort: dependencies run before dependents;
+        within the same dependency level, lower Priority runs first. Missing
+        dependencies and dependency cycles are reported, not silently dropped.
+    .OUTPUTS
+        [pscustomobject] Ordered (hashtable[]), Conflicts (string[]),
+        MissingDependencies (string[]), Cycles (string[]).
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param([Parameter(Mandatory)][AllowEmptyCollection()][hashtable[]] $Providers)
+
+    $byId = @{}
+    foreach ($p in $Providers) { $byId[$p.Id] = $p }
+
+    $conflicts = [System.Collections.Generic.List[string]]::new()
+    $missing   = [System.Collections.Generic.List[string]]::new()
+    $cycles    = [System.Collections.Generic.List[string]]::new()
+
+    # Conflict detection (symmetric): both present and one lists the other.
+    foreach ($p in $Providers) {
+        $meta = Get-DevDepotProviderMetadata -Provider $p
+        foreach ($c in @($meta.Conflicts)) {
+            if ($byId.ContainsKey($c)) { $conflicts.Add("$($p.Id) conflicts with $c") }
+        }
+        foreach ($d in @($meta.Dependencies)) {
+            if (-not $byId.ContainsKey($d)) { $missing.Add("$($p.Id) depends on missing '$d'") }
+        }
+    }
+
+    # Depth-first topological sort with cycle guard.
+    $ordered  = [System.Collections.Generic.List[hashtable]]::new()
+    $visited  = @{}   # id -> 'temp' | 'done'
+    $sorted   = $Providers | Sort-Object @{ E = { (Get-DevDepotProviderMetadata -Provider $_).Priority } }, @{ E = { $_.Id } }
+
+    $visit = {
+        param($node)
+        $id = $node.Id
+        if ($visited[$id] -eq 'done') { return }
+        if ($visited[$id] -eq 'temp') { $cycles.Add($id); return }
+        $visited[$id] = 'temp'
+        $meta = Get-DevDepotProviderMetadata -Provider $node
+        foreach ($dep in @($meta.Dependencies)) {
+            if ($byId.ContainsKey($dep)) { & $visit $byId[$dep] }
+        }
+        $visited[$id] = 'done'
+        $ordered.Add($node)
+    }
+    foreach ($p in $sorted) { & $visit $p }
+
+    [pscustomobject]@{
+        Ordered             = @($ordered.ToArray())
+        Conflicts           = $conflicts.ToArray()
+        MissingDependencies = $missing.ToArray()
+        Cycles              = $cycles.ToArray()
+    }
+}
+
 function Import-DevDepotProviders {
     <#
     .SYNOPSIS
@@ -102,8 +231,8 @@ function New-DevDepotContext {
         Configuration object.
     .PARAMETER Logger
         Logger instance.
-    .PARAMETER Manifest
-        Migration manifest (may be $null for read-only actions).
+    .PARAMETER State
+        State database (may be $null for read-only actions).
     .PARAMETER Simulate
         When set, actions run in WhatIf mode (no changes).
     #>
@@ -112,17 +241,26 @@ function New-DevDepotContext {
     param(
         [Parameter(Mandatory)][pscustomobject] $Config,
         [Parameter(Mandatory)][object] $Logger,
-        [object] $Manifest = $null,
+        [object] $State = $null,
+        [string] $PowerShellVersion = $null,
+        [string] $WindowsVersion = $null,
         [switch] $Simulate
     )
+    if (-not $PowerShellVersion) { $PowerShellVersion = $PSVersionTable.PSVersion.ToString() }
+    if (-not $WindowsVersion) {
+        $plat = Get-DevDepotPlatform
+        $WindowsVersion = $plat.Version
+    }
     [pscustomobject]@{
-        PSTypeName = 'DevDepot.Context'
-        Config     = $Config
-        Logger     = $Logger
-        Manifest   = $Manifest
-        Root       = (Expand-DevDepotPath $Config.root)
-        Privilege  = (Get-DevDepotPrivilege)
-        Simulate   = [bool]$Simulate
+        PSTypeName        = 'DevDepot.Context'
+        Config            = $Config
+        Logger            = $Logger
+        State             = $State
+        Root              = (Expand-DevDepotPath $Config.root)
+        Privilege         = (Get-DevDepotPrivilege)
+        PowerShellVersion = $PowerShellVersion
+        WindowsVersion    = $WindowsVersion
+        Simulate          = [bool]$Simulate
     }
 }
 
@@ -163,6 +301,7 @@ function Get-DevDepotMappingPlan {
         $strategy = Resolve-DevDepotStrategy -Mapping $m -Config $Context.Config
         $envVar   = if ($m.ContainsKey('EnvVar')) { [string]$m['EnvVar'] } else { $null }
 
+        $safety  = if ($m.ContainsKey('SafetyLevel')) { [string]$m['SafetyLevel'] } else { 'Safe' }
         $exists  = Test-Path -LiteralPath $source
         $linked  = Test-DevDepotReparsePoint -Path $source
         $size    = if ($exists -and -not $linked) { (Get-DevDepotFolderSize -Path $source).SizeBytes } else { [long]0 }
@@ -172,6 +311,7 @@ function Get-DevDepotMappingPlan {
             Target        = $target
             EnvVar        = $envVar
             Strategy      = $strategy
+            SafetyLevel   = $safety
             SourceExists  = $exists
             AlreadyLinked = $linked
             SizeBytes     = $size
@@ -245,14 +385,28 @@ function Invoke-EngineAnalyze {
     $plan  = Get-DevDepotMappingPlan -Provider $Provider -Context $Context
     $total = ($plan | Measure-Object -Property SizeBytes -Sum).Sum
     if ($null -eq $total) { $total = 0 }
-    $detected = (Invoke-EngineDetect -Provider $Provider -Context $Context).Details.Detected
+
+    # Classify against a robust "installed" signal: a command on PATH, or a
+    # reparse point we (or the user) already put in place. A bare directory that
+    # happens to exist does not count as installed (avoids false positives).
+    $cmds = if ($Provider.ContainsKey('Detect') -and $Provider['Detect'].ContainsKey('Commands')) { @($Provider['Detect']['Commands']) } else { @() }
+    $hasCommand    = (Test-DevDepotDetectionHints -Commands $cmds).Detected
+    $hasRealCache  = [bool](@($plan | Where-Object { $_.SourceExists -and -not $_.AlreadyLinked }).Count)
+    $isMigrated    = [bool](@($plan | Where-Object { $_.AlreadyLinked }).Count)
+    $classification =
+        if ($hasRealCache)               { 'ReadyToMigrate' }
+        elseif ($hasCommand -or $isMigrated) { 'AlreadyOptimized' }
+        else                             { 'NotInstalled' }
+    $detected = ($hasCommand -or $isMigrated -or $hasRealCache)
+
     New-DevDepotResult -Provider $Provider.Id -Action 'Analyze' -Status 'Success' `
         -Message ("{0}: {1}" -f $Provider.Name, (Format-DevDepotSize $total)) `
         -Details ([pscustomobject]@{
-            Detected     = $detected
-            Items        = $plan
-            TotalBytes   = [long]$total
-            Reclaimable  = [long]$total
+            Detected       = $detected
+            Classification = $classification
+            Items          = $plan
+            TotalBytes     = [long]$total
+            Reclaimable    = [long]$total
         })
 }
 
@@ -260,85 +414,104 @@ function Invoke-EngineMigrate {
     [CmdletBinding()]
     param([hashtable] $Provider, [pscustomobject] $Context)
 
-    $log     = $Context.Logger
-    $plan    = Get-DevDepotMappingPlan -Provider $Provider -Context $Context
-    $moved   = [long]0
-    $actions = [System.Collections.Generic.List[string]]::new()
-    $status  = 'Success'
+    $log  = $Context.Logger
+    $plan = Get-DevDepotMappingPlan -Provider $Provider -Context $Context
+    $ops  = [System.Collections.Generic.List[object]]::new()
+    $warnings = [System.Collections.Generic.List[string]]::new()
 
     foreach ($item in $plan) {
-        # --- Safety gate -------------------------------------------------
+        # --- Safety gate: refuse dangerous sources/targets outright ------
         $safeSrc = Test-DevDepotSafeSource -Path $item.Source
         $safeTgt = Test-DevDepotSafeTarget -Target $item.Target -Source $item.Source
         if (-not $safeSrc.IsSafe) {
             $log.Warn("[$($Provider.Id)] Skipping unsafe source '$($item.Source)': $($safeSrc.Reason)")
-            $actions.Add("skip-unsafe-source:$($item.Source)")
+            $warnings.Add("unsafe-source:$($item.Source)")
             continue
         }
         if (-not $safeTgt.IsSafe) {
             $log.Warn("[$($Provider.Id)] Skipping unsafe target '$($item.Target)': $($safeTgt.Reason)")
-            $actions.Add("skip-unsafe-target:$($item.Target)")
-            $status = 'Warning'
+            $warnings.Add("unsafe-target:$($item.Target)")
             continue
         }
 
         $useEnv      = ($item.EnvVar -and $item.Strategy -in @('EnvVar', 'Both'))
         $useJunction = ($item.Strategy -in @('Junction', 'Both') -and $Context.Config.createJunctions)
+        $willMove    = ($item.SourceExists -and -not $item.AlreadyLinked)
 
-        # --- Physical move (idempotent) ---------------------------------
-        if ($item.SourceExists -and -not $item.AlreadyLinked) {
-            $mv = Move-DevDepotDirectory -Source $item.Source -Target $item.Target -Logger $log -WhatIf:$Context.Simulate
-            if ($mv.Status -eq 'Failed') {
-                $status = 'Failed'
-                $actions.Add("move-failed:$($item.Source)")
-                continue
-            }
-            if ($mv.Status -in @('Success', 'Simulated')) {
-                $moved += $mv.BytesMoved
-                $actions.Add("move:$($item.Source)->$($item.Target)")
-                if ($Context.Manifest -and $mv.Status -eq 'Success') {
-                    Add-DevDepotManifestEntry -Manifest $Context.Manifest -Provider $Provider.Id -Type 'Move' `
-                        -Data @{ Source = $item.Source; Target = $item.Target }
-                }
-            }
-        }
-
-        # Ensure the target exists so tools can write to it.
-        if (-not $Context.Simulate -and -not (Test-Path -LiteralPath $item.Target)) {
+        # Ensure the target exists when nothing will be moved into it.
+        if (-not $willMove -and -not $Context.Simulate -and ($useEnv -or $useJunction) -and
+            -not (Test-Path -LiteralPath $item.Target)) {
             New-Item -ItemType Directory -Path $item.Target -Force | Out-Null
         }
 
-        # --- Environment variable ---------------------------------------
-        if ($useEnv) {
-            $change = Set-DevDepotEnvVar -Name $item.EnvVar -Value $item.Target `
-                -Scope $Context.Config.envVarScope -WhatIf:$Context.Simulate
-            $actions.Add("env:$($item.EnvVar)=$($item.Target)")
-            if ($Context.Manifest -and $change.Changed) {
-                Add-DevDepotManifestEntry -Manifest $Context.Manifest -Provider $Provider.Id -Type 'EnvVar' `
-                    -Data @{ Name = $item.EnvVar; Scope = $Context.Config.envVarScope; PreviousValue = $change.PreviousValue }
-            }
+        # Build the operation list in dependency order: move, then env, then junction.
+        if ($willMove) {
+            $op = New-DevDepotMoveOperation -Source $item.Source -Target $item.Target -EstimatedBytes $item.SizeBytes
+            $op.SafetyLevel = $item.SafetyLevel
+            $ops.Add($op)
         }
-
-        # --- Junction ----------------------------------------------------
+        if ($useEnv) {
+            $ops.Add((New-DevDepotEnvVarOperation -Name $item.EnvVar -Value $item.Target -Scope $Context.Config.envVarScope))
+        }
         if ($useJunction) {
-            try {
-                $j = New-DevDepotJunction -Path $item.Source -Target $item.Target -WhatIf:$Context.Simulate
-                $actions.Add("junction:$($item.Source)->$($item.Target)")
-                if ($Context.Manifest -and $j.Created) {
-                    Add-DevDepotManifestEntry -Manifest $Context.Manifest -Provider $Provider.Id -Type 'Junction' `
-                        -Data @{ Path = $item.Source; Target = $item.Target }
-                }
-            } catch {
-                $log.Warn("[$($Provider.Id)] Junction creation failed for '$($item.Source)': $($_.Exception.Message)")
-                $status = 'Warning'
-            }
+            $ops.Add((New-DevDepotJunctionOperation -Path $item.Source -Target $item.Target))
         }
     }
 
-    if ($Context.Simulate -and $status -eq 'Success') { $status = 'Simulated' }
-    New-DevDepotResult -Provider $Provider.Id -Action 'Migrate' -Status $status `
-        -Message ("Moved {0}; {1} action(s)." -f (Format-DevDepotSize $moved), $actions.Count) `
-        -Details ([pscustomobject]@{ MovedBytes = $moved; Actions = $actions.ToArray() })
+    $tx = Invoke-DevDepotTransaction -Context $Context -ProviderId $Provider.Id -Operations $ops.ToArray()
+
+    # Persist committed operations to the state database (authoritative record).
+    # Merge with any prior state so the original pre-migration baseline (e.g. the
+    # first Move and original env previousValue) survives idempotent re-runs.
+    if ($tx.Status -eq 'Success' -and $Context.State -and @($tx.Committed).Count -gt 0) {
+        $meta     = Get-DevDepotProviderMetadata -Provider $Provider
+        $tool     = Get-DevDepotProviderToolVersion -Provider $Provider
+        $existing = Get-DevDepotProviderState -State $Context.State -ProviderId $Provider.Id
+        $ops      = if ($existing) {
+            Merge-DevDepotOperations -Existing @($existing.operations) -New @($tx.Committed)
+        } else { @($tx.Committed) }
+        Set-DevDepotProviderState -State $Context.State -ProviderId $Provider.Id `
+            -Operations @($ops) -ProviderVersion $meta.Version -ToolVersion $tool -Status 'migrated'
+    }
+
+    $status = switch ($tx.Status) {
+        'Failed'    { 'Failed' }
+        'Simulated' { 'Simulated' }
+        default     { if ($warnings.Count -gt 0) { 'Warning' } else { 'Success' } }
+    }
+    $msg = if ($tx.Status -eq 'Failed') {
+        "Transaction failed at '$($tx.FailedOperation)' and was rolled back: $($tx.Error)"
+    } else {
+        "Moved {0}; {1} operation(s) committed." -f (Format-DevDepotSize $tx.Bytes), @($tx.Committed).Count
+    }
+
+    New-DevDepotResult -Provider $Provider.Id -Action 'Migrate' -Status $status -Message $msg `
+        -Details ([pscustomobject]@{
+            MovedBytes = $tx.Bytes
+            Committed  = @($tx.Committed)
+            RolledBack = $tx.RolledBack
+            Skipped    = @($tx.Skipped)
+            Warnings   = $warnings.ToArray()
+        })
+}
+
+function Get-DevDepotProviderToolVersion {
+    <#
+    .SYNOPSIS
+        Best-effort tool version for state records. Providers may declare a
+        VersionCommand (@{ Exe='node'; Args=@('--version') }); otherwise $null.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][hashtable] $Provider)
+    if (-not $Provider.ContainsKey('VersionCommand')) { return $null }
+    $vc = $Provider['VersionCommand']
+    if (-not (Test-DevDepotCommand -Name $vc.Exe)) { return $null }
+    try {
+        $r = Invoke-DevDepotCommand -FilePath $vc.Exe -Arguments @($vc.Args)
+        return ($r.StdOut + $r.StdErr).Trim().Split("`n")[0].Trim()
+    } catch {
+        return $null
+    }
 }
 
 function Invoke-EngineConfigure {
@@ -426,4 +599,6 @@ function Invoke-EngineRepair {
 }
 
 Export-ModuleMember -Function Test-DevDepotProviderDescriptor, Import-DevDepotProviders, New-DevDepotContext,
-    Get-DevDepotMappingPlan, Invoke-DevDepotProviderAction, Resolve-DevDepotStrategy
+    Get-DevDepotMappingPlan, Invoke-DevDepotProviderAction, Resolve-DevDepotStrategy,
+    Get-DevDepotProviderMetadata, Test-DevDepotProviderCapable, Resolve-DevDepotProviderOrder,
+    Get-DevDepotProviderToolVersion

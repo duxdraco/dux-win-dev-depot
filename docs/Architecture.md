@@ -30,12 +30,12 @@ separated so the project stays maintainable as providers grow into the dozens.
   and the engine implements all behaviour. This eliminates duplicated logic and
   makes a new provider a ~10-line file.
 - **Dependency injection.** Every provider action receives a *context* object
-  (`New-DevDepotContext`) carrying config, logger, manifest and privilege info.
+  (`New-DevDepotContext`) carrying config, logger, state and privilege info.
   There is no global mutable state.
 - **Idempotency.** Actions detect the already-migrated state (source is a
   reparse point, env var already set) and no-op. Running `install` twice is
   safe.
-- **Everything reversible.** Mutating actions append entries to a manifest;
+- **Everything reversible.** Mutating actions are recorded in the state database;
   `rollback` replays them in reverse.
 - **Fail safe, skip gracefully.** Unsupported or absent tools are skipped;
   unsafe paths are refused with a logged reason rather than an abort.
@@ -72,7 +72,7 @@ The engine implements all seven; a provider may override any via `Hooks`:
 - **Migrate** — move data, set env var, create junction (per strategy).
 - **Configure** — set env vars only, without moving data.
 - **Repair** — re-apply configuration/junctions to fix drift.
-- **Rollback** — no-op at provider level; handled from the manifest.
+- **Rollback** — no-op at provider level; handled from the state database.
 - **Validate** — confirm junctions and env vars match expectations.
 
 ## Link strategies
@@ -96,8 +96,36 @@ path-hardcoded tooling keep working.
 4. **Env var** — set at the configured scope (previous value captured).
 5. **Junction** — created at the source path pointing to the target.
 
-Each irreversible-by-default step records a manifest entry (`Move`, `EnvVar`,
-`Junction`, `Registry`).
+Each step is an **operation** run inside a transaction (below).
+
+## Transactional core (Phase 2.5)
+
+Migration is transactional. Every unit of work is an **operation** with three
+script blocks — `Do`, `Verify`, `Undo` — built by
+`New-DevDepot{Move,EnvVar,Junction}Operation`. `Invoke-DevDepotTransaction`:
+
+1. **Safety-gates** each op: runs only if its `SafetyLevel` ≤ `config.safetyLevel`.
+2. **Applies** the op (`Do`), then **verifies** it (`Verify`).
+3. On any failure, **undoes** the failing op and every previously-committed op in
+   reverse order — so a run never leaves a partially-migrated state.
+4. Returns committed operation **records** for persistence.
+
+**Verification** (`config.verification`): `None`, `Stats` (file/dir count + bytes,
+default) or `Hash` (order-independent SHA-256 of contents; opt-in, O(bytes)). A
+`Move` captures source stats/hash before moving and checks the destination after;
+a mismatch fails the op and rolls the transaction back. Junction targets and env
+values are verified by their own operations.
+
+**State database** (`.state/state.json` + `.state/history/`) is the authoritative
+record of what changed — per provider: operations (with original `previousValue`),
+provider version, tool version, timestamps, status. **Rollback reads state**, not
+Windows. Re-running `install` merges operations, preserving the original baseline
+(`Merge-DevDepotOperations`) so idempotent re-runs never corrupt rollback data.
+
+**Provider metadata** drives `install`: `Test-DevDepotProviderCapable` gates on
+`MinimumPowerShell`/`MinimumWindows`/`RequiresAdmin`; `Resolve-DevDepotProviderOrder`
+topologically orders by `Dependencies` then `Priority`, and reports conflicts,
+missing dependencies and cycles.
 
 ## Safety
 
@@ -120,14 +148,24 @@ Precedence (low → high): built-in defaults → `config.json` → CLI overrides
 | `linkStrategy`      | `Both`         | Default strategy for `Auto` mappings.                |
 | `envVarScope`       | `User`         | `User` or `Machine` (Machine needs elevation).       |
 | `logLevel`          | `Info`         | Trace/Debug/Info/Warn/Error.                         |
+| `verification`      | `Stats`        | `None` / `Stats` / `Hash` migration verification.    |
+| `safetyLevel`       | `Safe`         | Ceiling: `Safe`<`Conservative`<`Aggressive`<`Experimental`. |
 | `createJunctions`   | `true`         | Master switch for junction creation.                 |
 | `defaultProviderOn` | `true`         | Whether unlisted providers are enabled.              |
 | `providers`         | `{}`           | Per-provider `true`/`false` overrides.               |
 | `exclude`           | `[]`           | Provider ids to always skip.                         |
 
+Configuration is **layered** (lowest→highest precedence): built-in defaults →
+machine config → user config → environment variables (`DEVDEPOT_ROOT`,
+`DEVDEPOT_LINKSTRATEGY`, `DEVDEPOT_ENVVARSCOPE`, `DEVDEPOT_LOGLEVEL`,
+`DEVDEPOT_VERIFICATION`, `DEVDEPOT_SAFETYLEVEL`) → CLI overrides. The resolved
+config carries a `configSources` audit trail (shown by `status`).
+
 ## Logging & reports
 
-- Logs: `logs/<command>-<timestamp>.log` (console + file).
+- Logs: `logs/<command>-<timestamp>.log` (human) **and** `.jsonl` (structured,
+  one JSON record per line via `logger.Event`).
 - Reports: `reports/report-<command>-<runId>.{json,md,html}` — before/after
   sizes, moved bytes, warnings, errors, recommendations.
-- Manifests: `backups/manifest-<runId>.json`.
+- State: `.state/state.json` (authoritative) + `.state/history/` (archived
+  snapshots). Rollback consumes state.

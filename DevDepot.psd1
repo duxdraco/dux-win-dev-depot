@@ -13,7 +13,7 @@
             Tags         = @('Windows', 'DevOps', 'Cache', 'Migration', 'SDK', 'Cleanup')
             LicenseUri   = ''
             ProjectUri   = ''
-            ReleaseNotes = 'Phase 1-2: core architecture, provider engine, Java/Node/.NET/Python providers.'
+            ReleaseNotes = 'v0.1.0 - first usable release: transactional migration engine, state DB, 13 Java/Node/.NET/Python cache providers, analyze/install/rollback CLI.'
         }
     }
 }

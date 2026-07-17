@@ -81,19 +81,19 @@ Describe 'Provider descriptor validation' {
     }
 }
 
-Describe 'Backup manifest round-trip' {
-    It 'writes and reloads a manifest with entries' {
-        $dir = Join-Path $env:TEMP ("dd-manifest-" + [guid]::NewGuid())
+Describe 'State database round-trip' {
+    It 'records a provider and reloads it from disk' {
+        $base = Join-Path $env:TEMP ("dd-state-" + [guid]::NewGuid())
         try {
-            $m = New-DevDepotManifest -Root 'D:\DevDepot' -BackupDirectory $dir
-            Add-DevDepotManifestEntry -Manifest $m -Provider 'npm' -Type 'EnvVar' -Data @{ Name='npm_config_cache'; PreviousValue=$null; Scope='User' }
-            $path = Save-DevDepotManifest -Manifest $m
-            Test-Path $path | Should -BeTrue
-            $loaded = Import-DevDepotManifest -Path $dir
-            @($loaded.Entries).Count | Should -Be 1
-            $loaded.Entries[0].Type  | Should -Be 'EnvVar'
+            $s = Import-DevDepotState -BasePath $base -Root 'E:\DevDepot'
+            Set-DevDepotProviderState -State $s -ProviderId 'npm' -ProviderVersion '1.0.0' `
+                -Operations @(@{ type='EnvVar'; name='npm_config_cache'; scope='User'; previousValue=$null; newValue='E:\x' })
+            Save-DevDepotState -State $s | Out-Null
+            $reloaded = Import-DevDepotState -BasePath $base
+            (Get-DevDepotProviderState -State $reloaded -ProviderId 'npm') | Should -Not -BeNullOrEmpty
+            @((Get-DevDepotProviderState -State $reloaded -ProviderId 'npm').operations).Count | Should -Be 1
         } finally {
-            Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $base -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }

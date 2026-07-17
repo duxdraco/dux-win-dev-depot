@@ -1,8 +1,10 @@
 {
-  "root": "D:\\DevDepot",
+  "root": "E:\\00 DevDepot",
   "linkStrategy": "Both",
   "envVarScope": "User",
   "logLevel": "Info",
+  "verification": "Stats",
+  "safetyLevel": "Safe",
   "createJunctions": true,
   "defaultProviderOn": true,
   "providers": {},

@@ -1,7 +1,7 @@
 # Runtime output - never committed
 /logs/*
 /reports/*
-/backups/*
+/.state/
 !**/.gitkeep
 
 # Local user configuration (keep defaults + example)

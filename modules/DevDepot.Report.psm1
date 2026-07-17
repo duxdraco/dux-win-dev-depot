@@ -150,4 +150,60 @@ function Export-DevDepotReport {
     return [pscustomobject]$paths
 }
 
-Export-ModuleMember -Function Export-DevDepotReport, ConvertTo-DevDepotHtml, ConvertTo-DevDepotMarkdown
+function Format-DevDepotProviderSummary {
+    <#
+    .SYNOPSIS
+        Renders the per-provider verification summary block shown after migration.
+    .PARAMETER Name
+        Provider display name.
+    .PARAMETER Sources
+        Original (Current) path(s).
+    .PARAMETER Targets
+        New target path(s) under the DevDepot root.
+    .PARAMETER Status
+        Migrate status (Success/Skipped/Failed/Simulated/Warning).
+    .PARAMETER MovedBytes
+        Bytes physically moved.
+    .PARAMETER Verification
+        PASS / FAIL / SKIP.
+    .OUTPUTS
+        [string] the formatted block.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string] $Name,
+        [string[]] $Sources = @(),
+        [string[]] $Targets = @(),
+        [Parameter(Mandatory)][string] $Status,
+        [long] $MovedBytes = 0,
+        [string] $Verification = 'SKIP',
+        [string] $SizeLabel = 'Space moved:'
+    )
+    $bar = '=' * 40
+    $sb  = [System.Text.StringBuilder]::new()
+    [void]$sb.AppendLine($bar)
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine($Name)
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('Current:')
+    if (@($Sources).Count -eq 0) { [void]$sb.AppendLine('(none detected)') } else { foreach ($s in $Sources) { [void]$sb.AppendLine($s) } }
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('New:')
+    foreach ($t in $Targets) { [void]$sb.AppendLine($t) }
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('Status:')
+    [void]$sb.AppendLine($Status.ToUpperInvariant())
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine($SizeLabel)
+    [void]$sb.AppendLine((Format-DevDepotSize $MovedBytes))
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('Verification:')
+    [void]$sb.AppendLine($Verification.ToUpperInvariant())
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine($bar)
+    return $sb.ToString()
+}
+
+Export-ModuleMember -Function Export-DevDepotReport, ConvertTo-DevDepotHtml, ConvertTo-DevDepotMarkdown,
+    Format-DevDepotProviderSummary
