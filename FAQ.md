@@ -54,7 +54,7 @@ declared by providers — never your working directories.
 
 **How do I add support for a tool it doesn't know about?**
 A provider is a small declarative file. See the authoring guide in
-[docs/Providers.md](docs/Providers.md), or open a
+[the provider authoring guide](https://github.com/duxdraco/dux-win-dev-depot/blob/main/docs/Providers.md), or open a
 [provider request](https://github.com/duxdraco/dux-win-dev-depot/issues/new/choose).
 
 **Is macOS or Linux supported?**
@@ -67,7 +67,7 @@ space.
 
 ---
 
-More help: [Troubleshooting](docs/Troubleshooting.md) ·
+More help: [Troubleshooting](https://github.com/duxdraco/dux-win-dev-depot/blob/main/docs/Troubleshooting.md) ·
 [Discussions](https://github.com/duxdraco/dux-win-dev-depot/discussions).
 
 Developed and maintained by **Dux Draco**.

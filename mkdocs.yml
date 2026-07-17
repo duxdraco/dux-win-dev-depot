@@ -1,0 +1,95 @@
+site_name: DevDepot
+site_description: >-
+  Move developer caches, SDKs and package repositories off your Windows system
+  drive — safely, idempotently, and reversibly. A PowerShell 7 CLI.
+site_url: https://duxdraco.github.io/dux-win-dev-depot/
+site_author: Dux Draco
+copyright: Copyright &copy; 2026 Dux Draco
+
+repo_name: duxdraco/dux-win-dev-depot
+repo_url: https://github.com/duxdraco/dux-win-dev-depot
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+
+# Keep internal/historical files out of the published site.
+exclude_docs: |
+  review/
+  assets/README.md
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Quick start: quick-start.md
+  - Usage:
+      - Commands: commands.md
+      - Providers: supported-providers.md
+  - Community:
+      - FAQ: faq.md
+      - Roadmap: roadmap.md
+      - Contributing: contributing.md
+  - Reference:
+      - Architecture: Architecture.md
+      - Provider authoring guide: Providers.md
+      - Troubleshooting: Troubleshooting.md
+      - Developer guide: DeveloperGuide.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/duxdraco/dux-win-dev-depot
+      name: DevDepot on GitHub

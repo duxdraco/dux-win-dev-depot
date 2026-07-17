@@ -58,7 +58,7 @@ cache and how to redirect it. Sizes vary per machine; run `DevDepot analyze` to 
 Want DevDepot to support another tool? Open a
 [provider request](https://github.com/duxdraco/dux-win-dev-depot/issues/new/choose), or
 contribute one — a provider is a small declarative file. See the authoring guide in
-[docs/Providers.md](docs/Providers.md).
+[the provider authoring guide](https://github.com/duxdraco/dux-win-dev-depot/blob/main/docs/Providers.md).
 
 ---
 

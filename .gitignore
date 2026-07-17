@@ -4,6 +4,9 @@
 /.state/
 !**/.gitkeep
 
+# MkDocs build output
+/site/
+
 # Local user configuration (keep defaults + example)
 /config/config.json
 

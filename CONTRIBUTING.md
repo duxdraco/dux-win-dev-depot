@@ -4,7 +4,7 @@ Thanks for your interest in improving **DevDepot**! Contributions of all kinds a
 welcome — bug reports, documentation, and especially new providers, which are small and
 low-risk. This project is developed and maintained by **Dux Draco** with the community.
 
-By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
+By participating, you agree to abide by our [Code of Conduct](https://github.com/duxdraco/dux-win-dev-depot/blob/main/CODE_OF_CONDUCT.md).
 
 ## Ways to contribute
 
@@ -24,7 +24,7 @@ Looking for a place to start? Browse issues labelled
 - [Pester](https://pester.dev) 5.0+ — `Install-Module Pester -Scope CurrentUser -MinimumVersion 5.0.0 -Force`
 - [PSScriptAnalyzer](https://github.com/PowerShell/PSScriptAnalyzer) — `Install-Module PSScriptAnalyzer -Scope CurrentUser -Force`
 
-See [docs/DeveloperGuide.md](docs/DeveloperGuide.md) for a deeper walkthrough of the code.
+See [the developer guide](https://github.com/duxdraco/dux-win-dev-depot/blob/main/docs/DeveloperGuide.md) for a deeper walkthrough of the code.
 
 ## Development workflow
 
@@ -77,11 +77,11 @@ Checklist:
 - [ ] Detection hints cover the common install locations.
 - [ ] Redirects caches/artifacts, not credentials or source.
 - [ ] Uses the official cache environment variable when one exists.
-- [ ] Listed in [SUPPORTED_PROVIDERS.md](SUPPORTED_PROVIDERS.md).
+- [ ] Listed in [SUPPORTED_PROVIDERS.md](https://github.com/duxdraco/dux-win-dev-depot/blob/main/SUPPORTED_PROVIDERS.md).
 - [ ] Custom `Hooks` (if any) have a test.
 
 The full authoring guide, including imperative `Hooks` for tools like Docker/WSL, is in
-[docs/Providers.md](docs/Providers.md).
+[the provider authoring guide](https://github.com/duxdraco/dux-win-dev-depot/blob/main/docs/Providers.md).
 
 ## Commit and PR conventions
 
@@ -91,7 +91,7 @@ The full authoring guide, including imperative `Hooks` for tools like Docker/WSL
 
 ## Reporting security issues
 
-Please do **not** open a public issue for vulnerabilities. See [SECURITY.md](SECURITY.md).
+Please do **not** open a public issue for vulnerabilities. See [SECURITY.md](https://github.com/duxdraco/dux-win-dev-depot/blob/main/SECURITY.md).
 
 ---
 

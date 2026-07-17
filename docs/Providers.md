@@ -5,8 +5,8 @@ to redirect it. Providers live in `providers/<id>.provider.ps1` and are pure
 data — the [engine](Architecture.md#the-provider-contract) does the work.
 
 > For the **catalog of shipped providers** (paths, environment variables, strategies),
-> see [SUPPORTED_PROVIDERS.md](../SUPPORTED_PROVIDERS.md). This page is the guide to
-> **writing** a provider.
+> see [the supported providers list](https://github.com/duxdraco/dux-win-dev-depot/blob/main/SUPPORTED_PROVIDERS.md).
+> This page is the guide to **writing** a provider.
 
 ## Adding a provider
 
