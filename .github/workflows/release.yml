@@ -14,7 +14,7 @@ jobs:
     name: Package & publish
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Package release archive
         shell: pwsh
