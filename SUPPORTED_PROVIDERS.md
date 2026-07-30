@@ -44,6 +44,31 @@ cache and how to redirect it. Sizes vary per machine; run `DevDepot analyze` to 
 | **Poetry** | `%LOCALAPPDATA%\pypoetry\Cache` | `POETRY_CACHE_DIR` | Auto | `python\poetry-cache` |
 | **Conda** | `~\.conda` | – | Junction | `python\conda` |
 
+## IDEs & tools
+
+These have no official cache environment variable, so they are relocated with
+junctions. **Close the application before migrating.**
+
+| Provider | Source (on C:) | Strategy | Target under root |
+|----------|----------------|----------|-------------------|
+| **jetbrains** | `%APPDATA%\JetBrains` (config, plugins)<br>`%LOCALAPPDATA%\JetBrains` (caches, indexes) | Junction | `ide\jetbrains-config`<br>`ide\jetbrains-cache` |
+| **postman** | `%LOCALAPPDATA%\Postman` | Junction | `tools\postman` |
+| **tabnine** | `%APPDATA%\TabNine` | Junction | `ai\tabnine` |
+| **eclipse** | `~\.p2` (bundle pool, p2 metadata) | Junction | `java\eclipse-p2` |
+| **jdks** | `~\.jdks` (IDE-downloaded JDKs) | Junction | `java\jdks` |
+| **user-local** | `~\.local` (pip --user, pipx tools) | Junction | `shared\user-local` |
+
+## Platform (report-only)
+
+These providers **detect and report** but never migrate automatically, because
+relocating them requires stopping services and would disrupt running work.
+`install` reports their location and leaves them untouched.
+
+| Provider | Reports | How to relocate |
+|----------|---------|-----------------|
+| **wsl** | Location and size of each WSL2 distribution's `ext4.vhdx`, and whether it sits on the system drive | Manual procedure — see [Troubleshooting](docs/Troubleshooting.md#moving-a-wsl-distribution) |
+| **docker** | Location of the Docker Desktop WSL2 data distributions | Docker Desktop → Settings → Resources → Advanced → *Disk image location* |
+
 ## Notes
 
 - **Already off C:?** Some tools let you relocate their cache via their own configuration

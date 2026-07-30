@@ -8,7 +8,32 @@ DevDepot is developed and maintained by **Dux Draco**.
 
 ## [Unreleased]
 
-_Nothing yet. See the [roadmap](ROADMAP.md) for what's planned._
+### Added
+
+- **8 new providers**, all derived from real-world migrations verified on a live machine:
+  - `jetbrains` — JetBrains IDE config/plugins (`%APPDATA%\JetBrains`) and
+    caches/indexes (`%LOCALAPPDATA%\JetBrains`).
+  - `postman`, `tabnine` — application data and downloaded models.
+  - `eclipse` — Eclipse p2 bundle pool (`~\.p2`).
+  - `jdks` — IDE-downloaded JDKs (`~\.jdks`).
+  - `user-local` — user-installed CLI tools (`~\.local`).
+  - `wsl`, `docker` — **report-only**: they detect and report where WSL2
+    distributions and the Docker Desktop data-root live (including whether they sit
+    on the system drive), but never migrate automatically, because relocating them
+    requires stopping services and would disrupt running containers.
+- Documented manual WSL relocation procedure in
+  [Troubleshooting](docs/Troubleshooting.md#moving-a-wsl-distribution).
+
+### Known limitations
+
+- Junctions created outside DevDepot (manually) are not recorded in the state
+  database, so `rollback` cannot reverse them. `doctor` and `repair` work
+  correctly against them. A migration performed by `install` from the start
+  records state normally and remains fully reversible.
+- Providers with no detectable command (e.g. `jetbrains`, `jdks`) whose source
+  directory is absent are treated as "not installed" and skipped by `install`.
+  Use `repair` to recreate a missing junction when the data already sits at the
+  target.
 
 ## [0.1.0] - 2026-07-17
 
