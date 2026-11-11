@@ -9,9 +9,11 @@
     providers, then runs the requested command. Mutating commands are idempotent
     and transactional, and record an authoritative state database used for rollback.
 .PARAMETER Command
-    analyze | install | doctor | repair | rollback | status | report | provider | version
+    analyze | install | clean | doctor | repair | rollback | status | report | provider | version
 .PARAMETER Arg1
-    Sub-verb for 'provider' (list | enable | disable | info).
+    Sub-verb for 'provider' (list | enable | disable | info), or the first
+    cleanup task id for 'clean' (temp, chrome-cache, edge-cache,
+    appx-old-versions, hibernate; all when omitted).
 .PARAMETER Arg2
     Provider id for 'provider enable|disable|info'.
 .PARAMETER ConfigPath
@@ -37,13 +39,17 @@
 .EXAMPLE
     .\DevDepot.ps1 install -WhatIf
 .EXAMPLE
+    .\DevDepot.ps1 clean -WhatIf
+.EXAMPLE
+    .\DevDepot.ps1 clean temp chrome-cache
+.EXAMPLE
     .\DevDepot.ps1 provider disable docker
 .EXAMPLE
     .\DevDepot.ps1 provider info npm
 #>
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('analyze', 'install', 'doctor', 'repair', 'rollback', 'status', 'report', 'provider', 'list', 'version')]
+    [ValidateSet('analyze', 'install', 'clean', 'doctor', 'repair', 'rollback', 'status', 'report', 'provider', 'list', 'version')]
     [string] $Command = 'status',
 
     [Parameter(Position = 1)][string] $Arg1,
@@ -258,7 +264,9 @@ function Invoke-InstallCommand {
         if ($det.Details.Detected) { $report.Totals.DetectedCount++ }
         $m = Invoke-DevDepotProviderAction -Provider $p -Action 'Migrate' -Context $context
         if ($m.Status -eq 'Failed')  { $report.Errors   += "[$($p.Id)] $($m.Message)" }
-        if ($m.Status -eq 'Warning') { $report.Warnings += "[$($p.Id)] $($m.Message)" }
+        if ($m.Status -eq 'Warning' -or ($m.Status -eq 'Skipped' -and @($m.Details.Warnings).Count -gt 0)) {
+            $report.Warnings += "[$($p.Id)] $($m.Message)"
+        }
         $report.Totals.MovedBytes += [long]$m.Details.MovedBytes
 
         # Per-provider verification summary (requested output).
@@ -334,6 +342,50 @@ function Invoke-RollbackCommand {
     [pscustomobject]@{ Results = $results }
 }
 
+function Invoke-CleanCommand {
+    # Optional task ids follow the verb: clean [temp] [chrome-cache] ...
+    $report  = New-ReportSkeleton -CommandName 'clean'
+    $context = New-DevDepotContext -Config $config -Logger $logger -Simulate:$simulate
+    $tasks   = Get-DevDepotCleanupTasks
+    $only    = @(@($Arg1, $Arg2) + @($Rest) | Where-Object { $_ -and $_ -notlike '--*' })
+    if ($only.Count -gt 0) {
+        $unknown = @($only | Where-Object { $_ -notin $tasks.Id })
+        if ($unknown.Count -gt 0) { throw "Unknown cleanup task(s): $($unknown -join ', '). Known: $($tasks.Id -join ', ')" }
+        $tasks = @($tasks | Where-Object { $_.Id -in $only })
+    }
+
+    $drive = Get-DevDepotDriveInfo -Path $env:SystemDrive
+    Write-Host ''
+    Write-Host 'DevDepot clean' -ForegroundColor Cyan
+    if ($drive) { Write-Host ("  {0} free: {1}" -f $drive.Drive, (Format-DevDepotSize $drive.FreeBytes)) }
+    Write-Host ''
+
+    $rows = foreach ($t in $tasks) {
+        $r = Invoke-DevDepotCleanupTask -Task $t -Context $context
+        $report.Totals.ReclaimableBytes += [long]$r.Details.ReclaimableBytes
+        $report.Totals.MovedBytes       += [long]$r.Details.FreedBytes
+        if ($r.Status -eq 'Failed') { $report.Errors += "[$($t.Id)] $($r.Message)" }
+        if ($r.Status -eq 'Skipped' -and @($r.Details.Warnings).Count -gt 0) { $report.Warnings += "[$($t.Id)] $($r.Message)" }
+        Write-Host ('  {0,-18} {1,10}  {2,-9} {3}' -f $t.Id, (Format-DevDepotSize $r.Details.ReclaimableBytes), $r.Status, $r.Message)
+        [pscustomobject]@{
+            Id = $t.Id; Name = $t.Name; Category = 'Cleanup'; Detected = ($r.Details.ReclaimableBytes -gt 0)
+            SizeBytes = [long]$r.Details.ReclaimableBytes; SizeHuman = (Format-DevDepotSize $r.Details.ReclaimableBytes); Status = $r.Status
+        }
+    }
+    $report.Providers = @($rows)
+    Write-Host ''
+    Write-Host ("Freed: {0} of {1} reclaimable" -f (Format-DevDepotSize $report.Totals.MovedBytes), (Format-DevDepotSize $report.Totals.ReclaimableBytes)) -ForegroundColor Cyan
+    Write-Host ''
+
+    if (@($rows | Where-Object { $_.Status -eq 'Skipped' -and $_.Id -in @('appx-old-versions', 'hibernate') }).Count -gt 0 -and
+        -not $context.Privilege.IsElevated) {
+        $report.Recommendations += 'Run from an elevated PowerShell 7 to include appx-old-versions and hibernate.'
+    }
+    $paths = Write-Reports -Report $report
+    $logger.Info("Clean complete. Freed: $($report.Totals.MovedHuman).")
+    [pscustomobject]@{ Report = $report; Files = $paths }
+}
+
 function Invoke-ReportCommand {
     # Report on current recorded state plus live validation.
     $report  = New-ReportSkeleton -CommandName 'report'
@@ -405,6 +457,7 @@ function Invoke-ProviderCommand {
             Write-Host "  Requires      : PowerShell $($meta.MinimumPowerShell), Windows $($meta.MinimumWindows)"
             Write-Host "  Dependencies  : $((@($meta.Dependencies) -join ', '))"
             Write-Host "  Conflicts     : $((@($meta.Conflicts) -join ', '))"
+            Write-Host "  Blocked by    : $((@($meta.BlockingProcesses) -join ', '))"
             if ($p.ContainsKey('Mappings')) {
                 Write-Host '  Mappings:'
                 foreach ($m in @($p['Mappings'])) {
@@ -447,6 +500,7 @@ try {
         'doctor'   { Invoke-DoctorCommand }
         'repair'   { Invoke-RepairCommand }
         'rollback' { Invoke-RollbackCommand }
+        'clean'    { Invoke-CleanCommand }
         'report'   { Invoke-ReportCommand }
         'status'   { Invoke-StatusCommand }
         'provider' { Invoke-ProviderCommand }

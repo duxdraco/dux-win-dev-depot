@@ -77,6 +77,32 @@ Describe 'Transactional migration + state' {
     }
 }
 
+Describe 'Blocking processes' {
+    It 'skips migration while a listed process is running, then migrates once it is not' {
+        $sb = New-Sandbox
+        try {
+            $log = New-DevDepotLogger -LogDirectory $env:TEMP -Quiet -MinimumLevel Error
+            $ctx = New-DevDepotContext -Config (New-TestConfig $sb.Root) -Logger $log -PowerShellVersion '7.4'
+            $p   = New-TestProvider $sb.Source
+
+            # The test host itself is guaranteed to be running.
+            $p['Metadata'] = @{ BlockingProcesses = @((Get-Process -Id $PID).ProcessName) }
+            $m = Invoke-DevDepotProviderAction -Provider $p -Action 'Migrate' -Context $ctx
+            $m.Status                     | Should -Be 'Skipped'
+            @($m.Details.Warnings).Count  | Should -Be 1
+            Test-DevDepotReparsePoint -Path $sb.Source | Should -BeFalse
+            Test-Path (Join-Path $sb.Source 'a.txt')   | Should -BeTrue
+
+            $p['Metadata'] = @{ BlockingProcesses = @('devdepot-no-such-process') }
+            (Invoke-DevDepotProviderAction -Provider $p -Action 'Migrate' -Context $ctx).Status | Should -Be 'Success'
+            Test-DevDepotReparsePoint -Path $sb.Source | Should -BeTrue
+        } finally {
+            Remove-Item -LiteralPath $sb.Source -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $sb.Base -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Describe 'Transaction rollback on failure' {
     It 'undoes committed operations when a later operation fails' {
         $sb = New-Sandbox

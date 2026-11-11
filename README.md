@@ -155,7 +155,7 @@ pwsh -File .\DevDepot.ps1 rollback --provider npm
 ```
 
 Convenience wrappers exist for each command: `.\analyze.ps1`, `.\install.ps1`,
-`.\doctor.ps1`, `.\repair.ps1`, `.\rollback.ps1`, `.\status.ps1`.
+`.\clean.ps1`, `.\doctor.ps1`, `.\repair.ps1`, `.\rollback.ps1`, `.\status.ps1`.
 
 ## Commands
 
@@ -163,6 +163,7 @@ Convenience wrappers exist for each command: `.\analyze.ps1`, `.\install.ps1`,
 |------------|-------------|
 | `analyze`  | Detect tools, measure cache sizes, group them (ready / optimized / not installed). Read-only. |
 | `install`  | Migrate installed providers transactionally. Idempotent. Records state for rollback. |
+| `clean`    | Free system-drive space relocation cannot: stale temp, browser caches, superseded MSIX versions, hibernation file. See [commands](docs/commands.md#clean). |
 | `doctor`   | Diagnose broken junctions, missing/incorrect environment variables, and drift. |
 | `repair`   | Fix issues found by `doctor`. |
 | `rollback` | Reverse migrations from the state database (all, or `--provider <id>`). |

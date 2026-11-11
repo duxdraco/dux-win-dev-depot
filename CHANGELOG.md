@@ -21,6 +21,17 @@ DevDepot is developed and maintained by **Dux Draco**.
     distributions and the Docker Desktop data-root live (including whether they sit
     on the system drive), but never migrate automatically, because relocating them
     requires stopping services and would disrupt running containers.
+- **AI tool providers**: `claude-code` (`~\.claude`), `devin` (`~\.devin`,
+  `%APPDATA%\Devin`) and `codex` (`~\.codex`), all junction-based.
+- **`chrome` provider**: Chrome `User Data` relocated with a junction.
+- **`clean` command** (`clean.ps1` wrapper) for space relocation cannot reclaim:
+  `temp` (files older than 7 days), `chrome-cache` / `edge-cache`, and — with
+  administrator rights — `appx-old-versions` (superseded MSIX app versions such as
+  piled-up Claude Desktop updates) and `hibernate` (`powercfg /hibernate off`).
+  `-WhatIf` measures only; task ids limit the run.
+- Provider metadata `BlockingProcesses`: `Migrate` is skipped with a warning
+  (surfaced in the install report) while any listed process is running, instead
+  of moving a folder whose files are held open.
 - Documented manual WSL relocation procedure in
   [Troubleshooting](docs/Troubleshooting.md#moving-a-wsl-distribution).
 

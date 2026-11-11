@@ -81,6 +81,68 @@ Describe 'Provider descriptor validation' {
     }
 }
 
+Describe 'Cleanup' {
+    BeforeEach {
+        $script:Base = Join-Path $env:TEMP ("dd-clean-" + [guid]::NewGuid())
+        New-Item -ItemType Directory -Path $script:Base -Force | Out-Null
+    }
+    AfterEach {
+        Remove-Item -LiteralPath $script:Base -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    It 'selects only Chromium cache files and keeps profile data' {
+        $ud = Join-Path $script:Base 'User Data'
+        foreach ($d in 'Default\Cache\Cache_Data', 'Profile 1\Code Cache\js', 'GrShaderCache', 'Default\Network') {
+            New-Item -ItemType Directory -Path (Join-Path $ud $d) -Force | Out-Null
+        }
+        Set-Content -LiteralPath (Join-Path $ud 'Default\Cache\Cache_Data\f1') -Value 'a'
+        Set-Content -LiteralPath (Join-Path $ud 'Profile 1\Code Cache\js\f2') -Value 'b'
+        Set-Content -LiteralPath (Join-Path $ud 'GrShaderCache\f3') -Value 'c'
+        Set-Content -LiteralPath (Join-Path $ud 'Default\Network\Cookies') -Value 'keep'
+
+        $files = Get-DevDepotChromiumCacheFiles -UserData $ud
+        $files.Count | Should -Be 3
+        Remove-DevDepotFileList -Files $files | Should -BeGreaterThan 0
+        Test-Path (Join-Path $ud 'Default\Network\Cookies') | Should -BeTrue
+        @(Get-DevDepotChromiumCacheFiles -UserData $ud).Count | Should -Be 0
+    }
+    It 'selects only temp files older than the cutoff' {
+        $old = Join-Path $script:Base 'old.txt'; Set-Content -LiteralPath $old -Value 'x'
+        (Get-Item -LiteralPath $old).LastWriteTime = (Get-Date).AddDays(-10)
+        Set-Content -LiteralPath (Join-Path $script:Base 'new.txt') -Value 'y'
+        (Get-DevDepotStaleTempFiles -Path $script:Base -MaxAgeDays 7).Name | Should -Be 'old.txt'
+    }
+    It 'skips admin tasks when not elevated and blocked tasks while their process runs' {
+        $log = New-DevDepotLogger -LogDirectory $env:TEMP -Quiet
+        $ctx = New-DevDepotContext -Config (Import-DevDepotConfig) -Logger $log
+        $measure = { param($c, $t) [pscustomobject]@{ Bytes = [long]10; Note = '' } }
+        $run     = { param($c, $t) throw 'must not run' }
+
+        $ctx.Privilege = [pscustomobject]@{ IsElevated = $false }
+        $admin = @{ Id = 'a'; Name = 'A'; RequiresAdmin = $true; BlockingProcesses = @(); Measure = $measure; Run = $run }
+        (Invoke-DevDepotCleanupTask -Task $admin -Context $ctx).Status | Should -Be 'Skipped'
+
+        $busy = @{ Id = 'b'; Name = 'B'; RequiresAdmin = $false; BlockingProcesses = @((Get-Process -Id $PID).ProcessName)
+                   Measure = $measure; Run = $run }
+        $r = Invoke-DevDepotCleanupTask -Task $busy -Context $ctx
+        $r.Status | Should -Be 'Skipped'
+        @($r.Details.Warnings).Count | Should -Be 1
+    }
+    It 'reports without deleting in simulation' {
+        $log = New-DevDepotLogger -LogDirectory $env:TEMP -Quiet
+        $ctx = New-DevDepotContext -Config (Import-DevDepotConfig) -Logger $log -Simulate
+        $t = @{ Id = 's'; Name = 'S'; RequiresAdmin = $false; BlockingProcesses = @()
+                Measure = { param($c, $t) [pscustomobject]@{ Bytes = [long]10; Note = '' } }; Run = { param($c, $t) throw 'must not run' } }
+        $r = Invoke-DevDepotCleanupTask -Task $t -Context $ctx
+        $r.Status                    | Should -Be 'Simulated'
+        $r.Details.ReclaimableBytes  | Should -Be 10
+    }
+    It 'defines every built-in task with the required shape' {
+        foreach ($t in Get-DevDepotCleanupTasks) {
+            foreach ($k in 'Id', 'Name', 'RequiresAdmin', 'BlockingProcesses', 'Measure', 'Run') { $t.ContainsKey($k) | Should -BeTrue }
+        }
+    }
+}
+
 Describe 'State database round-trip' {
     It 'records a provider and reloads it from disk' {
         $base = Join-Path $env:TEMP ("dd-state-" + [guid]::NewGuid())

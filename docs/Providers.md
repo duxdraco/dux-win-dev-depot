@@ -69,6 +69,7 @@ providers. All fields have safe defaults, so metadata is additive.
         MinimumPowerShell = '7.4'
         MinimumWindows    = '10.0.19045'
         SupportsRollback  = $true
+        BlockingProcesses = @('Docker Desktop') # migrate is skipped while any runs
     }
     Mappings = @(
         @{ Source = '...'; TargetSubPath = 'containers\docker'; SafetyLevel = 'Conservative' }
@@ -79,6 +80,10 @@ providers. All fields have safe defaults, so metadata is additive.
 Per-mapping `SafetyLevel` (`Safe`|`Conservative`|`Aggressive`|`Experimental`,
 default `Safe`) gates the operation against `config.safetyLevel`. Mark anything
 destructive (e.g. pruning) at `Aggressive` or higher so it never runs by default.
+
+`BlockingProcesses` lists process names (as `Get-Process -Name` sees them) that
+hold the source open. While any is running, `Migrate` returns `Skipped` with a
+warning instead of moving a folder that is being written to.
 
 Inspect resolved metadata with `DevDepot provider info <id>`.
 
