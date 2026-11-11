@@ -76,6 +76,7 @@ function Get-DevDepotProviderMetadata {
         SupportsRollback  = $true
         SupportsAnalyze   = $true
         SupportsMigrate   = $true
+        BlockingProcesses = @()
     }
     $meta = if ($Provider.ContainsKey('Metadata') -and $Provider['Metadata'] -is [hashtable]) { $Provider['Metadata'] } else { @{} }
     foreach ($k in $meta.Keys) { $defaults[$k] = $meta[$k] }
@@ -415,6 +416,25 @@ function Invoke-EngineMigrate {
     param([hashtable] $Provider, [pscustomobject] $Context)
 
     $log  = $Context.Logger
+    $meta = Get-DevDepotProviderMetadata -Provider $Provider
+
+    # Apps that keep their data open (SQLite, append-only transcripts) cannot be
+    # moved while running: robocopy would copy a moving target and leave locked
+    # files behind. Refuse up front instead of relying on transaction rollback.
+    $running = Get-DevDepotRunningProcess -Name @($meta.BlockingProcesses)
+    if ($running.Count -gt 0) {
+        $msg = "Dang chay: $($running -join ', '). Dong hoan toan roi chay lai install."
+        $log.Warn("[$($Provider.Id)] $msg")
+        return New-DevDepotResult -Provider $Provider.Id -Action 'Migrate' -Status 'Skipped' -Message $msg `
+            -Details ([pscustomobject]@{
+                MovedBytes = [long]0
+                Committed  = @()
+                RolledBack = $false
+                Skipped    = @($running | ForEach-Object { "running:$_" })
+                Warnings   = @($running | ForEach-Object { "blocked-by-process:$_" })
+            })
+    }
+
     $plan = Get-DevDepotMappingPlan -Provider $Provider -Context $Context
     $ops  = [System.Collections.Generic.List[object]]::new()
     $warnings = [System.Collections.Generic.List[string]]::new()
@@ -464,7 +484,6 @@ function Invoke-EngineMigrate {
     # Merge with any prior state so the original pre-migration baseline (e.g. the
     # first Move and original env previousValue) survives idempotent re-runs.
     if ($tx.Status -eq 'Success' -and $Context.State -and @($tx.Committed).Count -gt 0) {
-        $meta     = Get-DevDepotProviderMetadata -Provider $Provider
         $tool     = Get-DevDepotProviderToolVersion -Provider $Provider
         $existing = Get-DevDepotProviderState -State $Context.State -ProviderId $Provider.Id
         $ops      = if ($existing) {

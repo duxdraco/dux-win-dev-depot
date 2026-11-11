@@ -33,6 +33,7 @@ $script:CoreModules = @(
     'DevDepot.Transaction.psm1'
     'DevDepot.Rollback.psm1'
     'DevDepot.Provider.psm1'
+    'DevDepot.Cleanup.psm1'
 )
 
 function Import-DevDepotCore {

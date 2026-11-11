@@ -45,4 +45,22 @@ function Test-DevDepotDetectionHints {
     }
 }
 
-Export-ModuleMember -Function Test-DevDepotDetectionHints
+function Get-DevDepotRunningProcess {
+    <#
+    .SYNOPSIS
+        Returns which of the given process names are currently running.
+    .PARAMETER Name
+        Process names as Get-Process -Name sees them (no .exe, case-insensitive).
+    .OUTPUTS
+        [string[]] distinct running process names (empty when none).
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([string[]] $Name = @())
+
+    if ($Name.Count -eq 0) { return , @() }
+    return , @(Get-Process -Name $Name -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty ProcessName -Unique)
+}
+
+Export-ModuleMember -Function Test-DevDepotDetectionHints, Get-DevDepotRunningProcess

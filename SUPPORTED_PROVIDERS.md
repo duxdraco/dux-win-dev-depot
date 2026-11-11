@@ -58,6 +58,35 @@ junctions. **Close the application before migrating.**
 | **jdks** | `~\.jdks` (IDE-downloaded JDKs) | Junction | `java\jdks` |
 | **user-local** | `~\.local` (pip --user, pipx tools) | Junction | `shared\user-local` |
 
+## AI tools
+
+Relocated with junctions. These apps keep their data open while running, so
+`install` **skips them (with a warning) until every listed process is closed** —
+including the Claude Code session you might be running DevDepot from.
+The folders also hold sign-in tokens; they move to the DevDepot drive with the rest.
+
+| Provider | Source (on C:) | Blocking processes | Target under root |
+|----------|----------------|--------------------|-------------------|
+| **claude-code** | `~\.claude` (config, transcripts, file history, plugins) | `claude` (Claude Code **and** Claude Desktop) | `ai\claude-code` |
+| **devin** | `~\.devin` (extensions)<br>`%APPDATA%\Devin` (app data, caches, CLI sessions) | `Devin` | `ai\devin-extensions`<br>`ai\devin-data` |
+| **codex** | `~\.codex` (config, SQLite state/logs) | `codex` | `ai\codex` |
+
+Not covered: Claude Desktop's own data lives in its MSIX package folder
+(`%LOCALAPPDATA%\Packages\Claude_*`); move it with Windows Settings → Apps →
+Claude → *Move*. Old Claude Desktop versions piling up in
+`C:\Program Files\WindowsApps` are removed by `DevDepot clean appx-old-versions`
+(administrator).
+
+## Browsers
+
+Relocated with a junction; skipped while the browser (including its background
+mode) is running. Caches inside the moved folder are emptied by
+`DevDepot clean chrome-cache`.
+
+| Provider | Source (on C:) | Blocking processes | Target under root |
+|----------|----------------|--------------------|-------------------|
+| **chrome** | `%LOCALAPPDATA%\Google\Chrome\User Data` (profiles, caches) | `chrome` | `browser\chrome-user-data` |
+
 ## Platform (report-only)
 
 These providers **detect and report** but never migrate automatically, because
