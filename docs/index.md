@@ -45,7 +45,9 @@ Reclaimable from system drive: 4.4 GB
 
 ## Highlights
 
-- **13 cache providers** across the Java, Node.js, .NET and Python ecosystems.
+- **25 providers**: Java, Node.js, .NET, Python, AI tools, browsers and IDEs.
+- **`clean` command** for temp files, browser caches, old Store app versions and the
+  hibernation file.
 - **Transactional migration** — each step is applied, verified, and rolled back as a unit
   if anything fails.
 - **Per-provider rollback** from a local state database.

@@ -1,7 +1,7 @@
 # Screenshots & assets
 
 Drop PNG screenshots here and reference them from the main
-[README](../../README.md#screenshots). Suggested captures (Windows Terminal, dark theme):
+[README](../../README.md). Suggested captures (Windows Terminal, dark theme):
 
 | File | Command to capture |
 |------|--------------------|
